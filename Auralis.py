@@ -91,7 +91,7 @@ def load_themes() -> Dict[str, dict]:
             except Exception:
                 pass
     if not themes:
-        # Hardcoded emergency fallback — only used when NO theme files exist at all
+        
         themes["Default"] = {
             "text": "#173144",
             "muted": "#527383",
@@ -112,7 +112,7 @@ THEMES = load_themes()
 
 def load_presets() -> Dict[str, Optional[Tuple[float, float]]]:
     presets: Dict[str, Optional[Tuple[float, float]]] = {}
-    # Try both capitalizations for cross-platform / case-sensitive FS compatibility
+    
     for presets_dir_name in ("Presets", "presets"):
         presets_dir = APP_DIR / "Resources" / presets_dir_name
         if presets_dir.exists():
@@ -130,7 +130,7 @@ def load_presets() -> Dict[str, Optional[Tuple[float, float]]]:
                 except Exception:
                     pass
             break
-    # Always guarantee NO_OP_PRESET_KEY appears first regardless of file contents
+  
     if NO_OP_PRESET_KEY not in presets:
         ordered: Dict[str, Optional[Tuple[float, float]]] = {NO_OP_PRESET_KEY: None}
         ordered.update(presets)
@@ -281,7 +281,7 @@ class ConversionSettings:
     true_peak_db: float = -1.0
 
 
-# Key used for the "no loudness change" preset — defined once to avoid scattered string literals
+
 NO_OP_PRESET_KEY = "変更なし"
 
 
@@ -538,7 +538,7 @@ class AddTracksCommand(QUndoCommand):
             idx = self.start_index + i
             self.mw.tracks.insert(idx, track)
             self.mw.table.insertRow(idx)
-            # Rebuild the table row
+            
             values = [
                 track.path.name,
                 track.info.codec.upper(),
@@ -635,7 +635,7 @@ class ApplyReleaseCommand(QUndoCommand):
         self.cover_data = cover_data
         self.cover_mime = cover_mime
         
-        # Capture old state
+       
         t = self.mw.tracks[self.track_index]
         self.old_tags = t.tags.copy()
         self.old_cover_data = t.cover_data
@@ -689,7 +689,7 @@ class MainWindow(QMainWindow):
         self.action_hint_animation: Optional[QPropertyAnimation] = None
         self.settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
         self.theme_name = str(self.settings.value("theme", next(iter(THEMES))))
-        # Migrate old/renamed theme names; fall back to first available theme
+       
         _legacy_theme_names = {"雪解け硝子", "Aero Aqua"}
         if self.theme_name in _legacy_theme_names or self.theme_name not in THEMES:
             self.theme_name = next(iter(THEMES))
@@ -1217,7 +1217,7 @@ class MainWindow(QMainWindow):
         self.retranslate_ui()
 
     def apply_style(self) -> None:
-        QApplication.instance().setFont(QFont("Helvetica Neue", 13))  # type: ignore[union-attr]
+        QApplication.instance().setFont(QFont("Helvetica Neue", 13))  
         t = THEMES.get(self.theme_name) or fallback_theme()
         if hasattr(self, "root_backdrop"):
             self.root_backdrop.set_theme(t)
@@ -1416,7 +1416,7 @@ class MainWindow(QMainWindow):
             """).substitute(t)
         )
 
-    def eventFilter(self, obj, event):  # type: ignore[override]
+    def eventFilter(self, obj, event):  
         if obj is getattr(self, "convert_button", None):
             if event.type() == QEvent.Enter:
                 self.show_action_hint(self.ui_text("convert_hint"))
@@ -1627,7 +1627,7 @@ class MainWindow(QMainWindow):
             return
         self.undo_stack.push(RemoveTrackCommand(self, row, self.tracks[row]))
 
-    def _do_remove_track_at(self, row: int) -> None:  # internal
+    def _do_remove_track_at(self, row: int) -> None:  
         if not (0 <= row < len(self.tracks)):
             return
         self.tracks.pop(row)
@@ -1644,7 +1644,7 @@ class MainWindow(QMainWindow):
             return
         self.undo_stack.push(ClearQueueCommand(self, list(self.tracks)))
 
-    def _do_clear_queue(self) -> None:  # internal
+    def _do_clear_queue(self) -> None:  
         self.tracks.clear()
         self.table.setRowCount(0)
         self.current_row = -1
