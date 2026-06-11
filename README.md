@@ -1,7 +1,7 @@
 # Auralis
 
 ## 日本語
-<img width="1470" height="923" alt="image" src="https://github.com/user-attachments/assets/5da7ed43-2a70-45ac-9c85-c2f546841638" />
+<img width="1470" height="923" alt="Auralis-JP" src="https://github.com/user-attachments/assets/871f0e69-36ac-429c-846a-06ef7cc36b2c" />
 Auralis は，ロスレス音源やハイレゾ音源を ALAC `.m4a` に変換するデスクトップGUIアプリです。
 
 読み込んだ音声がロスレスとして扱えるかを確認し，既知の非可逆形式を除外します。アルバム情報とアートワークの検索・編集，音量変換機能にも対応しています。
@@ -51,7 +51,7 @@ Auralis のソースコードは MIT License で提供されています。詳�
 公開サービスから取得されるアルバム情報やアートワークには，それぞれ別の権利や利用条件が存在する場合があります。
 
 ## English
-<img width="1470" height="923" alt="image" src="https://github.com/user-attachments/assets/984a1646-ef36-4802-9c31-7d2b6e43d177" />
+<img width="1470" height="923" alt="Auralis-En" src="https://github.com/user-attachments/assets/bfef6927-5059-480c-a263-e0ae40b6027e" />
 Auralis is a desktop GUI app for converting lossless and high-resolution audio files to ALAC `.m4a`.
 
 It checks whether imported audio can be treated as lossless, rejects known lossy formats, searches album metadata and artwork, lets you edit tags and cover art, and includes loudness conversion presets.
