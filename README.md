@@ -2,7 +2,7 @@
 
 ## 日本語
 <img width="1470" height="923" alt="Auralis-JP" src="https://github.com/user-attachments/assets/871f0e69-36ac-429c-846a-06ef7cc36b2c" />
-Auralis は，ロスレス音源やハイレゾ音源を ALAC `.m4a` に変換するデスクトップGUIアプリです。
+Auralis は，ロスレス音源やハイレゾ音源を ALAC `.m4a` に変換するデスクトップ GUI アプリです。
 
 読み込んだ音声がロスレスとして扱えるかを確認し，既知の非可逆形式を除外します。アルバム情報とアートワークの検索・編集，音量変換機能にも対応しています。
 
