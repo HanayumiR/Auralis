@@ -15,8 +15,6 @@
 | `LICENSE` | 本プロジェクトに適用される MIT License を収録しています。 |
 | `THIRD_PARTY_NOTICES.md` | 第三者コンポーネントのライセンス情報および配布時の注意事項を記載しています。 |
 | `requirements.txt` | Auralis の実行およびビルドに必要な Python パッケージ一覧を記載しています。 |
-
-`.venv/`，`build/`，`dist/`，`ALAC Output/`ならびに生成したスクリーンショット類は，意図して含める場合を除き公開しないでください。
 ## English
 
 These files are intended for the public GitHub repository.
@@ -35,7 +33,3 @@ These files are intended for the public GitHub repository.
 | `LICENSE` | Contains the MIT License applicable to this project. |
 | `THIRD_PARTY_NOTICES.md` | Lists third-party components, their licenses, and distribution-related notices. |
 | `requirements.txt` | Lists the Python packages required to run and build Auralis. |
-
-Do not publish generated folders such as `.venv/`, `build/`, `dist/`, `ALAC Output/`, or generated screenshots unless you intentionally want to include them.
-
-
