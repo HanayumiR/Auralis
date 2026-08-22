@@ -1,0 +1,137 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "Auralis-Release-*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install FFmpeg
+        run: choco install ffmpeg -y --no-progress
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --timeout 300 pyinstaller -r requirements.txt
+
+      - name: Build application
+        shell: pwsh
+        run: |
+          $Ffmpeg = (Get-Command ffmpeg.exe).Source
+          $Ffprobe = (Get-Command ffprobe.exe).Source
+          pyinstaller `
+            --noconfirm `
+            --clean `
+            --windowed `
+            --onefile `
+            --name "Auralis" `
+            --icon ".\assets\Auralis.ico" `
+            --add-data ".\assets;assets" `
+            --add-data ".\Resources;Resources" `
+            --add-binary "$Ffmpeg;." `
+            --add-binary "$Ffprobe;." `
+            .\Auralis_launcher.py
+
+      - name: Package Windows release
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path package | Out-Null
+          Copy-Item dist\Auralis.exe, LICENSE, THIRD_PARTY_NOTICES.md package\
+          Compress-Archive -Path package\* -DestinationPath Auralis-Windows-x64.zip
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: Auralis-Windows-x64.zip
+          if-no-files-found: error
+
+  build-macos:
+    name: Build macOS (${{ matrix.arch }})
+    strategy:
+      matrix:
+        include:
+          - runner: macos-14
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install FFmpeg
+        run: brew install ffmpeg
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --timeout 300 pyinstaller -r requirements.txt
+
+      - name: Build application
+        run: |
+          pyinstaller \
+            --noconfirm \
+            --clean \
+            --windowed \
+            --name "Auralis" \
+            --icon "assets/Auralis.icns" \
+            --add-data "assets:assets" \
+            --add-data "Resources:Resources" \
+            --add-binary "$(command -v ffmpeg):." \
+            --add-binary "$(command -v ffprobe):." \
+            Auralis_launcher.py
+
+      - name: Package macOS release
+        run: |
+          mkdir package
+          cp -R dist/Auralis.app package/
+          cp LICENSE THIRD_PARTY_NOTICES.md package/
+          ditto -c -k --sequesterRsrc --keepParent package Auralis-macOS-${{ matrix.arch }}.zip
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}-release
+          path: Auralis-macOS-${{ matrix.arch }}.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs:
+      - build-windows
+      - build-macos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: release-assets/*
