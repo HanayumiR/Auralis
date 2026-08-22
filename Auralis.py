@@ -931,7 +931,6 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(self.log_view, 0)
 
         right_card = QWidget()
-        right_card.setObjectName("rightPanelContent")
         right_card.setMinimumWidth(640)
         right_layout = QVBoxLayout(right_card)
         right_layout.setContentsMargins(0, 0, 0, 0)
@@ -991,7 +990,10 @@ class MainWindow(QMainWindow):
         editor_header.addWidget(self.metadata_details_button)
         editor_layout.addLayout(editor_header)
 
-        form_grid = QGridLayout()
+        form_content = QWidget()
+        form_content.setObjectName("metadataFieldsContent")
+        form_grid = QGridLayout(form_content)
+        form_grid.setContentsMargins(0, 0, 4, 0)
         form_grid.setHorizontalSpacing(10)
         form_grid.setVerticalSpacing(9)
         self.fields: Dict[str, QLineEdit] = {}
@@ -1029,7 +1031,17 @@ class MainWindow(QMainWindow):
             self.fields[key] = edit
             form_grid.addWidget(label, row, col)
             form_grid.addWidget(edit, row, col + 1)
-        editor_layout.addLayout(form_grid)
+        form_content.setMinimumHeight(max(258, form_content.sizeHint().height()))
+        self.metadata_fields_scroll = QScrollArea()
+        self.metadata_fields_scroll.setObjectName("metadataFieldsScroll")
+        self.metadata_fields_scroll.setWidgetResizable(True)
+        self.metadata_fields_scroll.setFrameShape(QFrame.NoFrame)
+        self.metadata_fields_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.metadata_fields_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.metadata_fields_scroll.setWidget(form_content)
+        self.metadata_fields_scroll.setMinimumHeight(170)
+        self.metadata_fields_scroll.setMaximumHeight(245)
+        editor_layout.addWidget(self.metadata_fields_scroll, 1)
         right_layout.addWidget(editor_frame)
 
         media_settings_row = QHBoxLayout()
@@ -1122,20 +1134,8 @@ class MainWindow(QMainWindow):
         right_layout.addLayout(media_settings_row, 1)
         self.apply_loudness_preset(NO_OP_PRESET_KEY)
 
-        # Keep the metadata controls at a usable height in windowed mode and
-        # let the dedicated panel scroll instead of compressing the fields.
-        right_card.setMinimumHeight(max(720, right_card.sizeHint().height()))
-        self.right_panel_scroll = QScrollArea()
-        self.right_panel_scroll.setObjectName("rightPanelScroll")
-        self.right_panel_scroll.setWidgetResizable(True)
-        self.right_panel_scroll.setFrameShape(QFrame.NoFrame)
-        self.right_panel_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.right_panel_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.right_panel_scroll.setWidget(right_card)
-        self.right_panel_scroll.setMinimumWidth(640)
-
         splitter.addWidget(left_card)
-        splitter.addWidget(self.right_panel_scroll)
+        splitter.addWidget(right_card)
         splitter.setSizes([620, 650])
         shell_layout.addWidget(splitter, 1)
 
@@ -1348,34 +1348,34 @@ class MainWindow(QMainWindow):
                 border: 1px solid rgba(255, 255, 255, 0.66);
                 border-radius: 8px;
             }
-            QScrollArea#rightPanelScroll {
+            QScrollArea#metadataFieldsScroll {
                 background: transparent;
                 border: none;
             }
-            QWidget#rightPanelContent {
+            QWidget#metadataFieldsContent {
                 background: transparent;
             }
-            QScrollArea#rightPanelScroll QScrollBar:vertical {
+            QScrollArea#metadataFieldsScroll QScrollBar:vertical {
                 background: rgba(255, 255, 255, 0.30);
                 border: 1px solid rgba(255, 255, 255, 0.56);
                 border-radius: 6px;
                 margin: 3px 1px;
                 width: 12px;
             }
-            QScrollArea#rightPanelScroll QScrollBar::handle:vertical {
+            QScrollArea#metadataFieldsScroll QScrollBar::handle:vertical {
                 background: $accent;
                 border-radius: 5px;
                 min-height: 44px;
             }
-            QScrollArea#rightPanelScroll QScrollBar::handle:vertical:hover {
+            QScrollArea#metadataFieldsScroll QScrollBar::handle:vertical:hover {
                 background: $accent_hover;
             }
-            QScrollArea#rightPanelScroll QScrollBar::add-line:vertical,
-            QScrollArea#rightPanelScroll QScrollBar::sub-line:vertical {
+            QScrollArea#metadataFieldsScroll QScrollBar::add-line:vertical,
+            QScrollArea#metadataFieldsScroll QScrollBar::sub-line:vertical {
                 height: 0;
             }
-            QScrollArea#rightPanelScroll QScrollBar::add-page:vertical,
-            QScrollArea#rightPanelScroll QScrollBar::sub-page:vertical {
+            QScrollArea#metadataFieldsScroll QScrollBar::add-page:vertical,
+            QScrollArea#metadataFieldsScroll QScrollBar::sub-page:vertical {
                 background: transparent;
             }
             QGroupBox {
