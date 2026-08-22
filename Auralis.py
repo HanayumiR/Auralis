@@ -993,7 +993,7 @@ class MainWindow(QMainWindow):
         form_content = QWidget()
         form_content.setObjectName("metadataFieldsContent")
         form_grid = QGridLayout(form_content)
-        form_grid.setContentsMargins(0, 0, 4, 0)
+        form_grid.setContentsMargins(0, 0, 4, 8)
         form_grid.setHorizontalSpacing(10)
         form_grid.setVerticalSpacing(9)
         self.fields: Dict[str, QLineEdit] = {}
