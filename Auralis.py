@@ -931,6 +931,7 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(self.log_view, 0)
 
         right_card = QWidget()
+        right_card.setObjectName("rightPanelContent")
         right_card.setMinimumWidth(640)
         right_layout = QVBoxLayout(right_card)
         right_layout.setContentsMargins(0, 0, 0, 0)
@@ -1121,8 +1122,20 @@ class MainWindow(QMainWindow):
         right_layout.addLayout(media_settings_row, 1)
         self.apply_loudness_preset(NO_OP_PRESET_KEY)
 
+        # Keep the metadata controls at a usable height in windowed mode and
+        # let the dedicated panel scroll instead of compressing the fields.
+        right_card.setMinimumHeight(max(720, right_card.sizeHint().height()))
+        self.right_panel_scroll = QScrollArea()
+        self.right_panel_scroll.setObjectName("rightPanelScroll")
+        self.right_panel_scroll.setWidgetResizable(True)
+        self.right_panel_scroll.setFrameShape(QFrame.NoFrame)
+        self.right_panel_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.right_panel_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.right_panel_scroll.setWidget(right_card)
+        self.right_panel_scroll.setMinimumWidth(640)
+
         splitter.addWidget(left_card)
-        splitter.addWidget(right_card)
+        splitter.addWidget(self.right_panel_scroll)
         splitter.setSizes([620, 650])
         shell_layout.addWidget(splitter, 1)
 
@@ -1334,6 +1347,36 @@ class MainWindow(QMainWindow):
                     stop:1 $card);
                 border: 1px solid rgba(255, 255, 255, 0.66);
                 border-radius: 8px;
+            }
+            QScrollArea#rightPanelScroll {
+                background: transparent;
+                border: none;
+            }
+            QWidget#rightPanelContent {
+                background: transparent;
+            }
+            QScrollArea#rightPanelScroll QScrollBar:vertical {
+                background: rgba(255, 255, 255, 0.30);
+                border: 1px solid rgba(255, 255, 255, 0.56);
+                border-radius: 6px;
+                margin: 3px 1px;
+                width: 12px;
+            }
+            QScrollArea#rightPanelScroll QScrollBar::handle:vertical {
+                background: $accent;
+                border-radius: 5px;
+                min-height: 44px;
+            }
+            QScrollArea#rightPanelScroll QScrollBar::handle:vertical:hover {
+                background: $accent_hover;
+            }
+            QScrollArea#rightPanelScroll QScrollBar::add-line:vertical,
+            QScrollArea#rightPanelScroll QScrollBar::sub-line:vertical {
+                height: 0;
+            }
+            QScrollArea#rightPanelScroll QScrollBar::add-page:vertical,
+            QScrollArea#rightPanelScroll QScrollBar::sub-page:vertical {
+                background: transparent;
             }
             QGroupBox {
                 margin-top: 12px;
@@ -1592,7 +1635,10 @@ class MainWindow(QMainWindow):
             full_size_content_view = 1 << 15
             msg_void(window, selector(b"setStyleMask:"), ctypes.c_ulong(style_mask | full_size_content_view))
             msg_void(window, selector(b"setTitlebarAppearsTransparent:"), ctypes.c_bool(True))
-            msg_void(window, selector(b"setMovableByWindowBackground:"), ctypes.c_bool(True))
+            # Text selection in the log must win over macOS background dragging.
+            # The native title bar remains draggable without making every empty
+            # area of the content view a window-drag region.
+            msg_void(window, selector(b"setMovableByWindowBackground:"), ctypes.c_bool(False))
             msg_void(window, selector(b"setTitleVisibility:"), ctypes.c_long(1))
             msg_void(window, selector(b"setToolbar:"), ctypes.c_void_p(0))
         except Exception:
@@ -2385,14 +2431,10 @@ def write_mp4_tags(
 
 
 def search_musicbrainz_releases(query: str) -> List[ReleaseCandidate]:
-    response = requests.get(
+    payload = get_musicbrainz_json(
         f"{MB_BASE}/release/",
         params={"query": query, "fmt": "json", "limit": 8},
-        headers=HTTP_HEADERS,
-        timeout=18,
     )
-    response.raise_for_status()
-    payload = response.json()
     candidates: List[ReleaseCandidate] = []
     for item in payload.get("releases", []):
         release_group = item.get("release-group") or {}
@@ -2411,14 +2453,27 @@ def search_musicbrainz_releases(query: str) -> List[ReleaseCandidate]:
 
 
 def lookup_musicbrainz_release(release_id: str) -> dict:
-    response = requests.get(
+    return get_musicbrainz_json(
         f"{MB_BASE}/release/{release_id}",
         params={"inc": "artist-credits+recordings+release-groups+labels+media+tags", "fmt": "json"},
-        headers=HTTP_HEADERS,
-        timeout=18,
     )
-    response.raise_for_status()
-    return response.json()
+
+
+def get_musicbrainz_json(url: str, params: dict) -> dict:
+    """Fetch MusicBrainz JSON, tolerating short-lived service failures."""
+    retry_statuses = {429, 500, 502, 503, 504}
+    for attempt in range(3):
+        response = requests.get(url, params=params, headers=HTTP_HEADERS, timeout=18)
+        if response.status_code not in retry_statuses or attempt == 2:
+            response.raise_for_status()
+            return response.json()
+        retry_after = response.headers.get("Retry-After", "")
+        try:
+            delay = min(5.0, max(1.0, float(retry_after)))
+        except ValueError:
+            delay = float(attempt + 1)
+        time.sleep(delay)
+    raise RuntimeError("MusicBrainz request failed")
 
 
 def fetch_cover_art(release_id: str, release_group_id: str = "") -> Tuple[Optional[bytes], Optional[str]]:
