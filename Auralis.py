@@ -235,8 +235,11 @@ class TrackItemState:
     path: Path
     info: AudioInfo
     tags: Dict[str, str] = field(default_factory=dict)
+    source_tags: Dict[str, str] = field(default_factory=dict)
     cover_data: Optional[bytes] = None
     cover_mime: Optional[str] = None
+    source_cover_data: Optional[bytes] = None
+    source_cover_mime: Optional[str] = None
     status: str = "待機"
     error: str = ""
     output_path: Optional[Path] = None
@@ -285,6 +288,17 @@ def fallback_theme() -> dict:
     return THEMES[next(iter(THEMES))]
 
 
+def theme_qcolor(value: str) -> QColor:
+    rgba_match = re.match(r"rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)", value)
+    if rgba_match:
+        red, green, blue, alpha = rgba_match.groups()
+        alpha_value = float(alpha)
+        if alpha_value <= 1.0:
+            alpha_value *= 255
+        return QColor(int(red), int(green), int(blue), int(alpha_value))
+    return QColor(value)
+
+
 class AppBackdrop(QWidget):
     def __init__(self):
         super().__init__()
@@ -295,16 +309,7 @@ class AppBackdrop(QWidget):
         self.update()
 
     def theme_color(self, value: str) -> QColor:
-        rgba_match = re.match(r"rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)", value)
-        if rgba_match:
-            r, g, b, a = rgba_match.groups()
-            alpha_val = float(a)
-            if alpha_val <= 1.0 and "." in a:
-                alpha_val = int(alpha_val * 255)
-            else:
-                alpha_val = int(alpha_val)
-            return QColor(int(r), int(g), int(b), alpha_val)
-        return QColor(value)
+        return theme_qcolor(value)
 
     def paintEvent(self, event):  
         painter = QPainter(self)
@@ -473,6 +478,79 @@ class CoverCandidateDialog(QDialog):
         self.accept()
 
 
+class MetadataDetailsDialog(QDialog):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.main_window = parent
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setModal(False)
+        self.resize(920, 680)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(12)
+
+        self.title_label = QLabel()
+        self.title_label.setObjectName("sectionTitle")
+        layout.addWidget(self.title_label)
+
+        self.note_label = QLabel()
+        self.note_label.setObjectName("latestLog")
+        self.note_label.setWordWrap(True)
+        layout.addWidget(self.note_label)
+
+        self.table = QTableWidget(0, 3)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.setSelectionMode(QTableWidget.NoSelection)
+        self.table.setAlternatingRowColors(False)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.table.setWordWrap(True)
+        layout.addWidget(self.table, 1)
+
+        close_row = QHBoxLayout()
+        close_row.addStretch(1)
+        self.close_button = QPushButton()
+        self.close_button.clicked.connect(self.close)
+        close_row.addWidget(self.close_button)
+        layout.addLayout(close_row)
+
+        self.refresh()
+
+    def refresh(self) -> None:
+        mw = self.main_window
+        self.setWindowTitle(mw.ui_text("metadata_details"))
+        self.title_label.setText(mw.ui_text("metadata_details"))
+        self.note_label.setText(mw.ui_text("metadata_prediction_note"))
+        self.close_button.setText(mw.ui_text("close"))
+        self.table.setHorizontalHeaderLabels([
+            mw.ui_text("metadata_field"),
+            mw.ui_text("metadata_source"),
+            mw.ui_text("metadata_predicted"),
+        ])
+
+        rows = mw.metadata_detail_rows()
+        self.table.setRowCount(len(rows))
+        accent = theme_qcolor((THEMES.get(mw.theme_name) or fallback_theme()).get("accent", "#2a8bd9"))
+        for row, (label, source, predicted, changed) in enumerate(rows):
+            for column, value in enumerate((label, source, predicted)):
+                item = QTableWidgetItem(value)
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                if column == 0:
+                    font = item.font()
+                    font.setBold(True)
+                    item.setFont(font)
+                elif column == 2 and changed:
+                    item.setForeground(accent)
+                    font = item.font()
+                    font.setBold(True)
+                    item.setFont(font)
+                self.table.setItem(row, column, item)
+            self.table.resizeRowToContents(row)
+
+
 class PreferencesDialog(QDialog):
     def __init__(self, parent: QWidget, theme_name: str, language_name: str, first_run: bool = False):
         super().__init__(parent)
@@ -615,6 +693,7 @@ class EditTagsCommand(QUndoCommand):
             if self.mw.current_row == self.track_index:
                 self.mw.load_track_into_form(self.mw.tracks[self.track_index])
             self.mw.refresh_table_labels()
+            self.mw.refresh_metadata_details()
 
     def redo(self):
         self._apply(self.new_tags)
@@ -647,6 +726,7 @@ class ApplyReleaseCommand(QUndoCommand):
             if self.mw.current_row == self.track_index:
                 self.mw.load_track_into_form(t)
             self.mw.refresh_table_labels()
+            self.mw.refresh_metadata_details()
 
     def undo(self):
         if 0 <= self.track_index < len(self.mw.tracks):
@@ -657,6 +737,7 @@ class ApplyReleaseCommand(QUndoCommand):
             if self.mw.current_row == self.track_index:
                 self.mw.load_track_into_form(t)
             self.mw.refresh_table_labels()
+            self.mw.refresh_metadata_details()
 
 
 class MainWindow(QMainWindow):
@@ -677,6 +758,7 @@ class MainWindow(QMainWindow):
         self.release_cover_data: Optional[bytes] = None
         self.release_cover_mime: str = ""
         self.metadata_worker: Optional[MetadataWorker] = None
+        self.metadata_details_dialog: Optional[MetadataDetailsDialog] = None
         self.conversion_worker: Optional[ConversionWorker] = None
         self.loading_form = False
         self.auto_apply_metadata = True
@@ -731,6 +813,7 @@ class MainWindow(QMainWindow):
         top.addStretch(1)
 
         self.output_dir_edit = QLineEdit(str(DEFAULT_OUTPUT_DIR))
+        self.output_dir_edit.textChanged.connect(self.refresh_metadata_details)
         self.output_dir_edit.setMinimumWidth(250)
         self.output_dir_edit.setMaximumWidth(310)
         self.output_label = QLabel("Output")
@@ -893,10 +976,19 @@ class MainWindow(QMainWindow):
         editor_layout = QVBoxLayout(editor_frame)
         editor_layout.setContentsMargins(12, 12, 12, 12)
         editor_layout.setSpacing(10)
+        editor_header = QHBoxLayout()
         editor_title = QLabel("曲情報")
         self.editor_title = editor_title
         editor_title.setObjectName("sectionTitle")
-        editor_layout.addWidget(editor_title)
+        editor_header.addWidget(editor_title)
+        editor_header.addStretch(1)
+        self.metadata_details_button = QPushButton("ⓘ")
+        self.metadata_details_button.setObjectName("metadataInfoButton")
+        self.metadata_details_button.setFixedSize(32, 32)
+        self.metadata_details_button.setEnabled(False)
+        self.metadata_details_button.clicked.connect(self.show_metadata_details)
+        editor_header.addWidget(self.metadata_details_button)
+        editor_layout.addLayout(editor_header)
 
         form_grid = QGridLayout()
         form_grid.setHorizontalSpacing(10)
@@ -1161,6 +1253,7 @@ class MainWindow(QMainWindow):
         self.apply_album_button.setText(self.ui_text("apply_all"))
         self.clear_metadata_button.setText(self.ui_text("clear_metadata"))
         self.editor_title.setText(self.ui_text("track_info"))
+        self.metadata_details_button.setToolTip(self.ui_text("details"))
         if hasattr(self, "cover_label"):
             self.cover_label.placeholder_text = self.ui_text("no_artwork")
             self.cover_label.error_text = self.ui_text("lbl_cannot_read_image")
@@ -1196,6 +1289,7 @@ class MainWindow(QMainWindow):
             self.choose_cover_action.setText(self.ui_text("choose_artwork"))
             self.clear_cover_action.setText(self.ui_text("delete_artwork"))
             self.preferences_action.setText(self.ui_text("theme_language"))
+        self.refresh_metadata_details()
         self.update_status()
 
     def show_initial_preferences(self) -> None:
@@ -1390,6 +1484,26 @@ class MainWindow(QMainWindow):
                 text-align: center;
                 padding: 10px;
             }
+            QPushButton#metadataInfoButton {
+                background: $accent;
+                border: 1px solid rgba(255, 255, 255, 0.84);
+                border-radius: 16px;
+                color: #ffffff;
+                font-size: 17px;
+                font-weight: 800;
+                min-width: 32px;
+                max-width: 32px;
+                min-height: 32px;
+                max-height: 32px;
+                padding: 0;
+            }
+            QPushButton#metadataInfoButton:hover {
+                background: $accent_hover;
+            }
+            QPushButton#metadataInfoButton:disabled {
+                background: $muted;
+                color: rgba(255, 255, 255, 0.72);
+            }
             QProgressBar {
                 background: rgba(255, 255, 255, 0.42);
                 border: 1px solid rgba(255, 255, 255, 0.70);
@@ -1414,6 +1528,9 @@ class MainWindow(QMainWindow):
             }
             """).substitute(t)
         )
+        if self.metadata_details_dialog is not None:
+            self.metadata_details_dialog.setStyleSheet(self.styleSheet())
+            self.metadata_details_dialog.refresh()
 
     def eventFilter(self, obj, event):  
         if obj is getattr(self, "convert_button", None):
@@ -1494,6 +1611,7 @@ class MainWindow(QMainWindow):
         self.true_peak_spin.setEnabled(enabled)
         self.loudness_spin.blockSignals(False)
         self.true_peak_spin.blockSignals(False)
+        self.refresh_metadata_details()
 
     def mark_custom_loudness(self) -> None:
         if self.preset_combo.currentText() in {NO_OP_PRESET_KEY, "Custom"}:
@@ -1501,6 +1619,7 @@ class MainWindow(QMainWindow):
         self.preset_combo.blockSignals(True)
         self.preset_combo.setCurrentText("Custom")
         self.preset_combo.blockSignals(False)
+        self.refresh_metadata_details()
 
     def update_status(self, status: str = "") -> None:
         if status:
@@ -1552,7 +1671,16 @@ class MainWindow(QMainWindow):
                 tags, cover_data, cover_mime = read_tags_and_cover(path)
                 if not tags.get("title"):
                     tags["title"] = path.stem
-                track = TrackItemState(path=path, info=info, tags=tags, cover_data=cover_data, cover_mime=cover_mime)
+                track = TrackItemState(
+                    path=path,
+                    info=info,
+                    tags=tags.copy(),
+                    source_tags=tags.copy(),
+                    cover_data=cover_data,
+                    cover_mime=cover_mime,
+                    source_cover_data=cover_data,
+                    source_cover_mime=cover_mime,
+                )
                 new_tracks.append(track)
                 self.log(self.ui_text("log_add").format(name=path.name, codec=info.codec, quality=info.quality_label))
             except Exception as exc:
@@ -1647,7 +1775,9 @@ class MainWindow(QMainWindow):
         self.tracks.clear()
         self.table.setRowCount(0)
         self.current_row = -1
+        self.metadata_details_button.setEnabled(False)
         self.load_track_into_form(None)
+        self.refresh_metadata_details()
         self.update_status(self.ui_text("idle"))
         self.log(self.ui_text("log_queue_cleared"))
 
@@ -1661,6 +1791,8 @@ class MainWindow(QMainWindow):
             self.prepare_search_from_current()
         else:
             self.load_track_into_form(None)
+        self.metadata_details_button.setEnabled(0 <= row < len(self.tracks))
+        self.refresh_metadata_details()
 
     def load_track_into_form(self, track: Optional[TrackItemState]) -> None:
         self.loading_form = True
@@ -1836,6 +1968,7 @@ class MainWindow(QMainWindow):
         self.cover_label.set_cover(data)
         self.update_cover_info(data)
         self.log(self.ui_text("log_loaded_jacket").format(name=Path(filename).name))
+        self.refresh_metadata_details()
 
     def rotate_cover(self, degrees: int) -> None:
         track = self.current_track()
@@ -1846,6 +1979,7 @@ class MainWindow(QMainWindow):
         track.cover_mime = mime
         self.cover_label.set_cover(data)
         self.update_cover_info(data)
+        self.refresh_metadata_details()
 
     def crop_cover_square(self) -> None:
         track = self.current_track()
@@ -1865,6 +1999,7 @@ class MainWindow(QMainWindow):
         track.cover_mime = None
         self.cover_label.set_cover(None)
         self.update_cover_info(None)
+        self.refresh_metadata_details()
 
     def show_cover_candidates(self) -> None:
         if not self.release_detail:
@@ -1890,6 +2025,7 @@ class MainWindow(QMainWindow):
                 self.load_track_into_form(self.tracks[self.current_row])
             self.log(self.ui_text("log_artwork_applied"))
             self.update_status(self.ui_text("status_ready"))
+            self.refresh_metadata_details()
 
     def update_cover_info(self, data: Optional[bytes]) -> None:
         if not data:
@@ -1905,6 +2041,82 @@ class MainWindow(QMainWindow):
         if 0 <= self.current_row < len(self.tracks):
             return self.tracks[self.current_row]
         return None
+
+    def show_metadata_details(self) -> None:
+        if not self.current_track():
+            return
+        self.sync_form_to_track()
+        if self.metadata_details_dialog is None:
+            dialog = MetadataDetailsDialog(self)
+            dialog.setStyleSheet(self.styleSheet())
+            dialog.destroyed.connect(lambda: setattr(self, "metadata_details_dialog", None))
+            self.metadata_details_dialog = dialog
+        else:
+            self.metadata_details_dialog.refresh()
+        self.metadata_details_dialog.show()
+        self.metadata_details_dialog.raise_()
+        self.metadata_details_dialog.activateWindow()
+
+    def refresh_metadata_details(self) -> None:
+        if self.metadata_details_dialog is not None:
+            self.metadata_details_dialog.refresh()
+
+    def artwork_metadata(self, data: Optional[bytes], mime: Optional[str]) -> str:
+        if not data:
+            return self.ui_text("none")
+        dimensions = ""
+        try:
+            with Image.open(io.BytesIO(data)) as image:
+                dimensions = f"{image.width} × {image.height} px"
+        except Exception:
+            pass
+        parts = [part for part in [mime or "image", dimensions, format_file_size(len(data))] if part]
+        return " / ".join(parts)
+
+    def metadata_detail_rows(self) -> List[Tuple[str, str, str, bool]]:
+        track = self.current_track()
+        if not track:
+            return [(self.ui_text("metadata_status"), self.ui_text("no_track_selected"), "—", False)]
+
+        output_dir = Path(self.output_dir_edit.text()).expanduser()
+        output_path = unique_output_path(output_dir, track.path.stem)
+        try:
+            source_size = format_file_size(track.path.stat().st_size)
+        except OSError:
+            source_size = self.ui_text("unknown")
+
+        source_tags = track.source_tags
+        predicted_tags = track.tags
+        source_artwork = self.artwork_metadata(track.source_cover_data, track.source_cover_mime)
+        predicted_artwork = self.artwork_metadata(track.cover_data, track.cover_mime)
+        sample_rate = f"{track.info.sample_rate:,} Hz" if track.info.sample_rate else self.ui_text("unknown")
+        bit_depth = f"{track.info.bit_depth} bit" if track.info.bit_depth else self.ui_text("unknown")
+        channels = str(track.info.channels) if track.info.channels else self.ui_text("unknown")
+        duration = format_duration(track.info.duration)
+        normalize = self.preset_combo.currentText() != NO_OP_PRESET_KEY
+        predicted_loudness = (
+            f"{self.loudness_spin.value():g} LUFS / {self.true_peak_spin.value():g} dBTP"
+            if normalize else self.ui_text("no_change")
+        )
+
+        values = [
+            ("file_name", track.path.name, output_path.name),
+            ("file_path", str(track.path), str(output_path)),
+            ("file_size", source_size, self.ui_text("calculated_after_conversion")),
+            ("container", track.info.format_name or self.ui_text("unknown"), "M4A"),
+            ("codec", track.info.codec.upper() or self.ui_text("unknown"), "ALAC"),
+            ("sample_rate", sample_rate, sample_rate),
+            ("bit_depth", bit_depth, bit_depth),
+            ("channels", channels, channels),
+            ("duration", duration, duration),
+            ("artwork_info", source_artwork, predicted_artwork),
+            ("loudness_processing", self.ui_text("not_applicable"), predicted_loudness),
+        ]
+        values.extend((key, source_tags.get(key, "") or "—", predicted_tags.get(key, "") or "—") for key in TAG_FIELDS)
+        return [
+            (self.ui_text(key), source, predicted, source != predicted)
+            for key, source, predicted in values
+        ]
 
     def undo_action(self) -> None:
         self.undo_stack.undo()
@@ -2437,6 +2649,15 @@ def format_duration(seconds: float) -> str:
     if hours:
         return f"{hours}:{minutes:02d}:{secs:02d}"
     return f"{minutes}:{secs:02d}"
+
+
+def format_file_size(size: int) -> str:
+    value = float(max(0, size))
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if value < 1024 or unit == "TB":
+            return f"{value:.0f} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{value:.1f} TB"
 
 
 def normalize_title(value: str) -> str:
