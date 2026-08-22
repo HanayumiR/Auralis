@@ -2,7 +2,6 @@
 
 ## 日本語
 
-
 Auralis のソースコードは MIT License の下で配布されます。
 
 また，実行時およびビルド時の依存コンポーネントにも，それぞれ独自のライセンスが適用されます。
@@ -37,4 +36,3 @@ Runtime and build dependencies keep their own licenses:
 Album metadata is queried from public music metadata services, and cover art is fetched from public cover-art endpoints when available. Metadata and artwork returned by those services may have separate rights and usage terms.
 
 If you distribute a bundled binary, include this file and the license texts required by the exact FFmpeg and Qt/PySide6 builds you ship.
-
