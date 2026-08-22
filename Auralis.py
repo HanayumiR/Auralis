@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import io
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -31,13 +30,10 @@ from PySide6.QtWidgets import (
     QFrame,
     QGraphicsOpacityEffect,
     QGridLayout,
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -46,7 +42,6 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QDoubleSpinBox,
     QSplitter,
-    QStyle,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -422,7 +417,7 @@ class CoverLabel(QLabel):
         pixmap = QPixmap()
         if not pixmap.loadFromData(self._data):
             self.setPixmap(QPixmap())
-            self.setText("COVER ERROR")
+            self.setText(getattr(self, "error_text", "Cannot read artwork"))
             return
         size = self.size() - QSize(12, 12)
         self.setText("")
@@ -432,13 +427,14 @@ class CoverLabel(QLabel):
 class CoverCandidateDialog(QDialog):
     def __init__(self, parent: QWidget, candidates: List[CoverArtCandidate]):
         super().__init__(parent)
-        self.setWindowTitle("Artwork Candidates")
+        get_text = parent.ui_text if hasattr(parent, "ui_text") else lambda key: key
+        self.setWindowTitle(get_text("candidates"))
         self.selected: Optional[CoverArtCandidate] = None
         self.resize(720, 520)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
-        title = QLabel("Artwork Candidates")
+        title = QLabel(get_text("candidates"))
         title.setObjectName("sectionTitle")
         layout.addWidget(title)
 
@@ -467,7 +463,7 @@ class CoverCandidateDialog(QDialog):
 
         close_row = QHBoxLayout()
         close_row.addStretch(1)
-        close_button = QPushButton("Close")
+        close_button = QPushButton(get_text("close"))
         close_button.clicked.connect(self.reject)
         close_row.addWidget(close_button)
         layout.addLayout(close_row)
@@ -482,7 +478,7 @@ class PreferencesDialog(QDialog):
         super().__init__(parent)
         get_text = parent.ui_text if hasattr(parent, "ui_text") else lambda k: k
         title_text = get_text("settings") if get_text("settings") != "settings" else "Settings"
-        self.setWindowTitle(title_text if not first_run else "Initial Setup")
+        self.setWindowTitle(title_text if not first_run else get_text("initial_setup"))
         self.setModal(True)
         self.resize(420, 220)
         layout = QVBoxLayout(self)
@@ -528,7 +524,7 @@ class PreferencesDialog(QDialog):
 
 class AddTracksCommand(QUndoCommand):
     def __init__(self, main_window, new_tracks, start_index):
-        super().__init__("曲の追加")
+        super().__init__(main_window.ui_text("undo_add_tracks"))
         self.mw = main_window
         self.new_tracks = new_tracks
         self.start_index = start_index
@@ -580,7 +576,7 @@ class AddTracksCommand(QUndoCommand):
 
 class RemoveTrackCommand(QUndoCommand):
     def __init__(self, main_window, row, track):
-        super().__init__("曲の削除")
+        super().__init__(main_window.ui_text("undo_remove_track"))
         self.mw = main_window
         self.row = row
         self.track = track
@@ -594,7 +590,7 @@ class RemoveTrackCommand(QUndoCommand):
 
 class ClearQueueCommand(QUndoCommand):
     def __init__(self, main_window, old_tracks):
-        super().__init__("キューのクリア")
+        super().__init__(main_window.ui_text("undo_clear_queue"))
         self.mw = main_window
         self.old_tracks = old_tracks
 
@@ -607,7 +603,7 @@ class ClearQueueCommand(QUndoCommand):
 
 class EditTagsCommand(QUndoCommand):
     def __init__(self, main_window, track_index, old_tags, new_tags):
-        super().__init__("メタデータの編集")
+        super().__init__(main_window.ui_text("undo_edit_metadata"))
         self.mw = main_window
         self.track_index = track_index
         self.old_tags = old_tags.copy()
@@ -628,7 +624,7 @@ class EditTagsCommand(QUndoCommand):
 
 class ApplyReleaseCommand(QUndoCommand):
     def __init__(self, main_window, track_index, release, cover_data, cover_mime):
-        super().__init__("メタデータ一括反映")
+        super().__init__(main_window.ui_text("undo_apply_metadata"))
         self.mw = main_window
         self.track_index = track_index
         self.release = release
@@ -783,11 +779,11 @@ class MainWindow(QMainWindow):
         self.undo_button = QPushButton("←")
         self.undo_button.setObjectName("undoButton")
         self.undo_button.setFixedSize(44, 44)
-        self.undo_button.setToolTip("Undo")
+        self.undo_button.setToolTip(self.ui_text("undo"))
         self.redo_button = QPushButton("→")
         self.redo_button.setObjectName("redoButton")
         self.redo_button.setFixedSize(44, 44)
-        self.redo_button.setToolTip("Redo")
+        self.redo_button.setToolTip(self.ui_text("redo"))
         
         self.undo_button.clicked.connect(self.undo_stack.undo)
         self.redo_button.clicked.connect(self.undo_stack.redo)
@@ -1165,9 +1161,12 @@ class MainWindow(QMainWindow):
         self.apply_album_button.setText(self.ui_text("apply_all"))
         self.clear_metadata_button.setText(self.ui_text("clear_metadata"))
         self.editor_title.setText(self.ui_text("track_info"))
-        if hasattr(self, "cover_display"):
-            self.cover_display.placeholder_text = self.ui_text("no_artwork")
-            self.cover_display.refresh()
+        if hasattr(self, "cover_label"):
+            self.cover_label.placeholder_text = self.ui_text("no_artwork")
+            self.cover_label.error_text = self.ui_text("lbl_cannot_read_image")
+            self.cover_label.refresh()
+        self.undo_button.setToolTip(self.ui_text("undo"))
+        self.redo_button.setToolTip(self.ui_text("redo"))
         for key, label in self.field_labels.items():
             label.setText(self.ui_text(key))
         self.cover_title.setText(self.ui_text("artwork"))
@@ -1521,7 +1520,7 @@ class MainWindow(QMainWindow):
     def choose_files(self) -> None:
         files, _ = QFileDialog.getOpenFileNames(
             self,
-            "曲を追加",
+            self.ui_text("add_song"),
             str(Path.home()),
             "Audio Files (*.flac *.alac *.m4a *.wav *.aiff *.aif *.ape *.wv *.tta *.mka *.caf);;All Files (*)",
         )
@@ -1558,7 +1557,7 @@ class MainWindow(QMainWindow):
                 self.log(self.ui_text("log_add").format(name=path.name, codec=info.codec, quality=info.quality_label))
             except Exception as exc:
                 rejected_count += 1
-                simple = friendly_import_error(exc)
+                simple = self.ui_text(friendly_import_error(exc))
                 self.log(self.ui_text("log_reject").format(name=path.name, error=exc), latest=self.ui_text("log_reject_simple").format(name=path.name, error=simple))
 
         if new_tracks:
@@ -1823,7 +1822,7 @@ class MainWindow(QMainWindow):
             return
         filename, _ = QFileDialog.getOpenFileName(
             self,
-            "ジャケット画像",
+            self.ui_text("change_artwork"),
             str(Path.home()),
             "Images (*.jpg *.jpeg *.png *.webp *.tif *.tiff);;All Files (*)",
         )
@@ -1891,42 +1890,6 @@ class MainWindow(QMainWindow):
                 self.load_track_into_form(self.tracks[self.current_row])
             self.log(self.ui_text("log_artwork_applied"))
             self.update_status(self.ui_text("status_ready"))
-
-    def submit_cddb_metadata(self) -> None:
-        if not self.tracks:
-            QMessageBox.information(self, APP_NAME, self.ui_text("msg_no_metadata_to_send"))
-            return
-        self.sync_form_to_track()
-        output_dir = Path(self.output_dir_edit.text()).expanduser()
-        output_dir.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "app": APP_NAME,
-            "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-            "album": self.tracks[0].tags.get("album", ""),
-            "albumartist": self.tracks[0].tags.get("albumartist", ""),
-            "tracks": [
-                {
-                    "filename": track.path.name,
-                    "codec": track.info.codec,
-                    "sample_rate": track.info.sample_rate,
-                    "bit_depth": track.info.bit_depth,
-                    "duration": track.info.duration,
-                    "tags": {key: value for key, value in track.tags.items() if value},
-                    "release_id": track.mb_release_id,
-                    "release_group_id": track.mb_release_group_id,
-                    "has_artwork": bool(track.cover_data),
-                }
-                for track in self.tracks
-            ],
-        }
-        target = unique_json_path(output_dir, "auralis-cddb-submission")
-        target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-        self.log(self.ui_text("log_cddb_data_created").format(name=target.name))
-        QMessageBox.information(
-            self,
-            APP_NAME,
-            "公開データベースへの直接投稿は認証が必要です。送信用データを作成しました。",
-        )
 
     def update_cover_info(self, data: Optional[bytes]) -> None:
         if not data:
@@ -2059,12 +2022,12 @@ def probe_audio_file(path: Path) -> AudioInfo:
 def friendly_import_error(exc: Exception) -> str:
     message = str(exc).lower()
     if "非ロスレス" in str(exc) or "lossless と確認できない" in str(exc) or "codec" in message:
-        return "ロスレス音源として確認できませんでした。"
+        return "err_not_lossless"
     if "ffprobe" in message or "ffmpeg" in message:
-        return "音源の解析に必要なツールが見つかりません。"
+        return "err_no_tools"
     if "音声ストリーム" in str(exc):
-        return "音声ファイルとして読み込めませんでした。"
-    return "このファイルを読み込めませんでした。"
+        return "err_not_audio"
+    return "err_cannot_read"
 
 
 def is_lossless_codec(codec: str) -> bool:
@@ -2420,16 +2383,6 @@ def unique_output_path(output_dir: Path, stem: str) -> Path:
     counter = 2
     while candidate.exists():
         candidate = output_dir / f"{safe_stem}-{counter}.m4a"
-        counter += 1
-    return candidate
-
-
-def unique_json_path(output_dir: Path, stem: str) -> Path:
-    safe_stem = re.sub(r"[\\/:*?\"<>|]+", "_", stem).strip() or "submission"
-    candidate = output_dir / f"{safe_stem}.json"
-    counter = 2
-    while candidate.exists():
-        candidate = output_dir / f"{safe_stem}-{counter}.json"
         counter += 1
     return candidate
 
