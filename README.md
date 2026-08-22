@@ -10,6 +10,7 @@ Auralis は，ロスレス音源やハイレゾ音源を ALAC (.m4a) に変換�
 
 - FLAC，WAV/AIFF PCM，ALAC，WavPack，APE，TTA，TrueHD などのロスレス系音源の ALAC 変換機能
 - 楽曲情報とアートワークの自動検索機能・楽曲情報エディタ機能
+- 変換元メタデータと変換後の予測値を比較できる詳細表示
 - ラウドネス値・トゥルーピーク調整機能
 - 対応言語: 日本語，英語，簡体字中国語，繁体字中国語，韓国語，朝鮮語（漢字・ハングル混じり）
 
@@ -70,6 +71,7 @@ It checks whether imported audio can be treated as lossless, rejects known lossy
 
 - ALAC conversion for lossless audio formats such as FLAC, WAV/AIFF PCM, ALAC, WavPack, APE, TTA and TrueHD
 - Automatic search for track information and artwork, plus track information editor
+- Metadata details comparing the source track with predicted output values
 - Loudness and true peak adjustment functions
 - Supported languages: Japanese, English, Simplified Chinese, Traditional Chinese, Korean, Hanja-Korean mixed
 
